@@ -22766,7 +22766,10 @@ function synBotSend(text){
   if(_synBotHistory.length > 12) _synBotHistory = _synBotHistory.slice(-12);
 
   // ── DEMO MODE: return fake response if keys are stripped ──
-  if (typeof GROQ_KEYS !== 'undefined' && GROQ_KEYS[0] === 'DEMO_KEY') {
+  // Allow social post intents (post to X etc) to fall through to the real handler
+  var _demoSocialBypass = typeof GROQ_KEYS !== 'undefined' && GROQ_KEYS[0] === 'DEMO_KEY' &&
+    /(post|tweet|share|publish).{0,30}(x|twitter|tweet|linkedin|threads|reddit|bluesky|tiktok|instagram)/i.test(msg);
+  if (typeof GROQ_KEYS !== 'undefined' && GROQ_KEYS[0] === 'DEMO_KEY' && !_demoSocialBypass) {
     var _demoReply = _DEMO_RESPONSES[_demoResponseIdx % _DEMO_RESPONSES.length];
     _demoResponseIdx++;
     setTimeout(function(){
@@ -27328,6 +27331,224 @@ window.addEventListener('message', function(e) {
     } catch(e){}
 
     await _wait(600);
+
+    // ── Scene 1.5: Chat demo — type question, stream answer, show past chats ──
+    try {
+      // Navigate to a fresh chat
+      if (typeof newChat === 'function') newChat();
+      await _wait(800);
+
+      // Type the question into the input box, character by character
+      var _demoQ = 'What can you help me build?';
+      var _ib = document.getElementById('inputBox');
+      if (_ib) {
+        _ib.value = '';
+        _ib.focus();
+        for (var _ci = 0; _ci < _demoQ.length; _ci++) {
+          _ib.value += _demoQ[_ci];
+          if (typeof autoResize === 'function') autoResize(_ib);
+          await _wait(38 + Math.random() * 28);
+        }
+      }
+      await _wait(600);
+
+      // Clear input, inject user message bubble
+      if (_ib) _ib.value = '';
+      var _cc = document.getElementById('chatContainer');
+      if (_cc) {
+        // Hide empty state if showing
+        var _es = document.getElementById('chatEmptyState');
+        if (_es) _es.classList.add('hidden');
+
+        // User message
+        var _ug = document.createElement('div');
+        _ug.className = 'message-group';
+        _ug.innerHTML = '<div class="avatar user" style="background:linear-gradient(135deg,#7c6af7,#e85d96);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;flex-shrink:0;">U</div><div class="message-body"><div class="message-name" style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:7px;">You</div><div class="message-text" style="font-size:14.5px;line-height:1.7;">' + _demoQ + '</div></div>';
+        _cc.appendChild(_ug);
+        _cc.scrollTop = _cc.scrollHeight;
+        await _wait(700);
+
+        // AI typing indicator
+        var _tg = document.createElement('div');
+        _tg.className = 'message-group';
+        _tg.id = '_demoChatTyping';
+        _tg.innerHTML = '<div class="avatar" style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7c6af7,#00d9a8);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;color:white;">AI</div><div class="message-body"><div class="message-name" style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:7px;">Synapses AI</div><div class="message-text" style="font-size:14.5px;line-height:1.7;"><span style="opacity:0.5;font-style:italic;">Thinking…</span></div></div>';
+        _cc.appendChild(_tg);
+        _cc.scrollTop = _cc.scrollHeight;
+        await _wait(1200);
+
+        // Stream in AI reply word by word
+        var _aiReply = "A lot. I can help you build apps, automations, and workflows — write and debug code, draft product specs, design systems, research markets, create content, and connect you with the right tools for every stage. Think of me as your always-on co-founder. What are you working on?";
+        var _words = _aiReply.split(' ');
+        var _textEl = _tg.querySelector('.message-text');
+        if (_textEl) {
+          _textEl.innerHTML = '';
+          var _streamed = '';
+          for (var _wi = 0; _wi < _words.length; _wi++) {
+            _streamed += (_wi === 0 ? '' : ' ') + _words[_wi];
+            _textEl.textContent = _streamed;
+            _cc.scrollTop = _cc.scrollHeight;
+            await _wait(32 + Math.random() * 28);
+          }
+        }
+        await _wait(1000);
+
+        // Inject fake demo past chats so sidebar has content
+        var _fakeChats = [
+          'Build a SaaS landing page',
+          'Explain transformer architecture',
+          'Draft cold outreach email',
+          'Debug my React component',
+          'Market research for fintech app'
+        ];
+        var _origRecent = window.recentChats ? window.recentChats.slice() : [];
+        window.recentChats = _fakeChats.map(function(label, i){
+          return { key: '_demo_' + i, label: label };
+        });
+
+        // Open the past chats sidebar with fade-open animation
+        var _chpSb = document.getElementById('chpSidebar');
+        var _chpList = document.getElementById('chpList');
+        if (_chpSb && _chpList) {
+          _chpList.innerHTML = '';
+          var _rl = document.createElement('div'); _rl.className = 'chp-section-label'; _rl.textContent = 'Recent'; _chpList.appendChild(_rl);
+          window.recentChats.forEach(function(c) {
+            var item = document.createElement('div'); item.className = 'chp-item';
+            item.innerHTML = '<span class="chp-item-dot"></span><span class="chp-item-label">' + c.label + '</span>';
+            _chpList.appendChild(item);
+          });
+          if (typeof toggleChatHistoryPanel === 'function') toggleChatHistoryPanel();
+        }
+
+        await _wait(4500);
+
+        // Close sidebar and restore real recentChats
+        if (typeof closeChatHistoryPanel === 'function') closeChatHistoryPanel();
+        else if (_chpSb) _chpSb.classList.remove('open', 'fade-open');
+        window.recentChats = _origRecent;
+        if (typeof _syncStickyNotesOffset === 'function') _syncStickyNotesOffset();
+        await _wait(600);
+      }
+    } catch(e) {}
+
+    // ── Scene 1.6: SYN-BOT hover → open → post to X ───────────────────────
+    try {
+      // Make sure we're still on chat page with the AI response visible
+      // 1. Show the robot tooltip (simulate hover)
+      var _rtip = document.getElementById('robotTooltip');
+      if (_rtip) {
+        document.getElementById('rtLabel').textContent = 'SYN-BOT // guide';
+        document.getElementById('rtText').textContent = 'hi! click me to chat — i can navigate, explain features, or just vibe 👾';
+        _rtip.style.transition = 'none';
+        _rtip.classList.remove('rt-hidden');
+        _rtip.classList.add('rt-visible');
+        requestAnimationFrame(function(){ requestAnimationFrame(function(){ _rtip.style.transition = ''; }); });
+        // Wave arm animation
+        var _arm = document.getElementById('rtWaveArm');
+        if (_arm) {
+          var _armClone = _arm.cloneNode(true);
+          _armClone.style.animation = 'cgWaveArm 1.2s ease-in-out';
+          _arm.parentNode.replaceChild(_armClone, _arm);
+        }
+      }
+      await _wait(1800);
+
+      // 2. Open the synbot chat panel (replicate toggleChat open branch)
+      var _sbChat = document.getElementById('synBotChat');
+      if (_sbChat && _sbChat.style.display !== 'flex') {
+        // Hide robot bubble as real click would
+        if (_rtip) { _rtip.style.transition = 'none'; _rtip.style.opacity = '0'; _rtip.style.visibility = 'hidden'; }
+        _sbChat.style.height = '';
+        _sbChat.style.maxHeight = '66vh';
+        _sbChat.style.display = 'flex';
+        // Render context quick buttons
+        if (typeof synBotRenderContextQuicks === 'function') synBotRenderContextQuicks();
+        // Greeting bubble if msgs empty
+        var _sbMsgs = document.getElementById('synBotMsgs');
+        if (_sbMsgs && _sbMsgs.children.length === 0) {
+          var _greeting = typeof synBotGetContextGreeting === 'function' ? synBotGetContextGreeting() : 'hi! 👾 what do you need?';
+          var _greetBubble = document.createElement('div');
+          _greetBubble.style.cssText = 'background:rgba(124,106,247,0.12);border:1px solid rgba(124,106,247,0.2);border-radius:10px 10px 10px 3px;padding:8px 11px;font-size:12px;color:rgba(255,255,255,0.85);line-height:1.5;font-family:DM Sans,sans-serif;';
+          _greetBubble.textContent = _greeting;
+          _sbMsgs.appendChild(_greetBubble);
+        }
+      }
+      await _wait(1400);
+
+      // 3. Type "post this to X" into the synbot input character by character
+      var _sbInput = document.getElementById('synBotInput');
+      var _postMsg = 'post this to X';
+      if (_sbInput) {
+        _sbInput.value = '';
+        _sbInput.focus();
+        for (var _pi = 0; _pi < _postMsg.length; _pi++) {
+          _sbInput.value += _postMsg[_pi];
+          await _wait(55 + Math.random() * 35);
+        }
+      }
+      await _wait(500);
+
+      // 4. Show user bubble ("post this to X")
+      var _sbMsgsX = document.getElementById('synBotMsgs');
+      if (_sbMsgsX) {
+        var _userBubble = document.createElement('div');
+        _userBubble.style.cssText = 'align-self:flex-end;background:rgba(124,106,247,0.22);border:1px solid rgba(124,106,247,0.35);border-radius:10px 10px 3px 10px;padding:8px 11px;font-size:12px;color:rgba(255,255,255,0.9);max-width:80%;font-family:DM Sans,sans-serif;margin-top:8px;';
+        _userBubble.textContent = 'post this to X';
+        _sbMsgsX.appendChild(_userBubble);
+        _sbMsgsX.scrollTop = _sbMsgsX.scrollHeight;
+      }
+      if (_sbInput) _sbInput.value = '';
+      await _wait(900);
+
+      // 4b. Inject X draft card — keep a direct reference to it
+      var _draftCardEl = null;
+      var _sbMsgsX2 = document.getElementById('synBotMsgs');
+      if (_sbMsgsX2) {
+        var _postText = 'Just asked my AI what it can help me build — and the answer was: a lot. Apps, automations, code, content and more 🚀 Check it out → synapses.ai #AI #BuildWithAI @synapses_ai';
+        var _charCount = _postText.length;
+        _draftCardEl = document.createElement('div');
+        _draftCardEl.style.cssText = 'background:#000;border:1px solid #2f3336;border-radius:12px;padding:14px 14px 10px;max-width:92%;font-family:DM Sans,sans-serif;margin-top:8px;';
+        _draftCardEl.innerHTML = [
+          '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">',
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25z"/></svg>',
+            '<span style="color:#fff;font-size:13px;font-weight:600;">Draft Post</span>',
+          '</div>',
+          '<textarea style="width:100%;background:transparent;border:none;outline:none;color:#e7e9ea;font-size:13px;line-height:1.5;resize:none;font-family:inherit;min-height:72px;">'+_postText+'</textarea>',
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #2f3336;">',
+            '<span style="color:'+(_charCount>280?'#f4212e':_charCount>240?'#ffd400':'#71767b')+';font-size:11px;">'+_charCount+'/280</span>',
+            '<button style="background:#fff;color:#000;border:none;border-radius:9999px;padding:5px 16px;font-size:12px;font-weight:700;cursor:pointer;">Post to 𝕏</button>',
+          '</div>'
+        ].join('');
+        _sbMsgsX2.appendChild(_draftCardEl);
+        _sbMsgsX2.scrollTop = _sbMsgsX2.scrollHeight;
+      }
+      await _wait(3000);
+
+      // 4c. Simulate clicking Post — fade out card, show confirmation
+      if (_draftCardEl && _draftCardEl.parentNode) {
+        _draftCardEl.style.transition = 'opacity .25s';
+        _draftCardEl.style.opacity = '0';
+        await _wait(280);
+        _draftCardEl.parentNode.removeChild(_draftCardEl);
+        var _sbMsgsX3 = document.getElementById('synBotMsgs');
+        if (_sbMsgsX3) {
+          var _confirmBubble = document.createElement('div');
+          _confirmBubble.style.cssText = 'background:rgba(29,155,240,0.12);border:1px solid rgba(29,155,240,0.35);border-radius:10px;padding:10px 13px;font-size:12.5px;color:rgba(255,255,255,0.9);font-family:DM Sans,sans-serif;display:flex;align-items:center;gap:8px;margin-top:6px;';
+          _confirmBubble.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="#1d9bf0"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25z"/></svg><span>✓ Posted to <strong>X</strong> successfully!</span>';
+          _sbMsgsX3.appendChild(_confirmBubble);
+          _sbMsgsX3.scrollTop = _sbMsgsX3.scrollHeight;
+        }
+      }
+      await _wait(2500);
+
+      // 5. Close the synbot panel cleanly
+      if (_sbChat) _sbChat.style.display = 'none';
+      if (_rtip) { _rtip.style.transition = ''; _rtip.style.opacity = ''; _rtip.style.visibility = ''; _rtip.classList.remove('rt-visible'); _rtip.classList.add('rt-hidden'); }
+      // Clear synbot msgs for next time
+      var _sbMsgsClean = document.getElementById('synBotMsgs');
+      if (_sbMsgsClean) _sbMsgsClean.innerHTML = '';
+      await _wait(800);
+    } catch(e) {}
 
     // ── Scene 2: Page tour ──────────────────────────────────────────────────
     var navMap2 = {

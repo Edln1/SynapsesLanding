@@ -14617,7 +14617,7 @@ setTimeout(function(){initAva();renderNotes();},50);
     _hb.style.display = 'flex';
     _hb.style.marginBottom = '28px';
     _hb.style.opacity = '0';
-    _hb.style.transform = 'translateY(-10px) scaleY(0.85)';
+    _hb.style.transform = '';
     _hb.style.background = 'linear-gradient(135deg,rgba(0,217,168,0.07),rgba(124,106,247,0.09))';
     _hb.style.border = '1px solid rgba(0,217,168,0.15)';
     _hb.style.borderRadius = '16px';
@@ -14629,7 +14629,9 @@ setTimeout(function(){initAva();renderNotes();},50);
     if(_hbtn) _hbtn.classList.remove('hero-active');
     void _hb.offsetWidth; // force reflow
     runHeroBarLaser(_hb, function(){
-      _hb.classList.add('hero-visible');
+      _hb.style.animation = 'none';
+      _hb.style.transform = '';
+      _hb.style.opacity = '1';
       if(_hbtn) _hbtn.classList.add('hero-active');
     });
   }
@@ -27780,9 +27782,8 @@ window.addEventListener('message', function(e) {
     _nav('jobs');     await _wait(3000);
 
     // ── Hub: go to community photo grid, then slide open builder feed right panel ──
-    _nav('hub');      await _wait(400);
+    // Force panel closed BEFORE navigating so it's never seen open on arrival
     try {
-      // Force builder feed fully closed — reset both DOM and state flag
       var _bfc = document.getElementById('builderFeedCol');
       if (_bfc) {
         _bfc.style.transition = 'none';
@@ -27791,7 +27792,19 @@ window.addEventListener('message', function(e) {
         _bfc.style.padding = '0';
         _bfc.style.overflow = 'hidden';
       }
-      // Force state to closed regardless of previous loop
+      window._builderFeedVisible = false;
+    } catch(e) {}
+    _nav('hub');      await _wait(400);
+    try {
+      // Confirm closed after nav
+      var _bfc = document.getElementById('builderFeedCol');
+      if (_bfc) {
+        _bfc.style.transition = 'none';
+        _bfc.style.width = '0';
+        _bfc.style.minWidth = '0';
+        _bfc.style.padding = '0';
+        _bfc.style.overflow = 'hidden';
+      }
       window._builderFeedVisible = false;
     } catch(e) {}
     await _wait(900);
@@ -27822,9 +27835,21 @@ window.addEventListener('message', function(e) {
       // Also reset humanMood so goHuman shows landing
       window.humanMood = null;
     } catch(e) {}
-    _nav('human');    await _wait(5000);
+    window.humanMood = null;
+    // Reset hc-word animations BEFORE nav so startHCWordAnimations replays them
+    try {
+      document.querySelectorAll('.hc-word').forEach(function(w){ w.style.animation = 'none'; w.style.opacity = '0'; void w.offsetWidth; w.style.animation = ''; });
+    } catch(e) {}
+    _nav('human');
+    // After goHuman runs, fix the opacity that skipHumanLanding left at 0
+    await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+    try {
+      var _hl = document.getElementById('humanLanding');
+      if (_hl) { _hl.style.opacity = '1'; _hl.style.transition = 'none'; }
+    } catch(e) {}
+    await _wait(4000);
     try { if(typeof skipHumanLanding==='function') skipHumanLanding(); } catch(e){}
-    await _wait(2500);
+    await _wait(3500);
 
     _nav('world');    await _wait(3000);
 
